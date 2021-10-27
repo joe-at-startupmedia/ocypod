@@ -16,6 +16,9 @@ pub const RUNNING_KEY: &str = "ocypod:running";
 /// queue. Jobs in this queue are monitored for retries.
 pub const FAILED_KEY: &str = "ocypod:failed";
 
+/// Redis key for the timedout job list. Jobs that have timed out and no longer monitored for retries.
+pub const TIMEDOUT_KEY: &str = "ocypod:timedout";
+
 /// Redis key for the ended job list. Jobs are moved here then they have either successfully completed,
 /// or failed/timed out with no remaining retries to attempted. Jobs in this queue are monitored for expiry.
 pub const ENDED_KEY: &str = "ocypod:ended";
