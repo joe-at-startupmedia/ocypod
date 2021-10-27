@@ -171,6 +171,7 @@ impl RedisJob {
         .hset(&self.key, job::Field::Status, job::Status::Queued)
         .lrem(keys::FAILED_KEY, 1, self.id)
         .lrem(keys::ENDED_KEY, 1, self.id)
+        .lrem(keys::TIMEDOUT_KEY, 1, self.id)
         .lpush(&queue.jobs_key, self.id)
         .incr(keys::STAT_JOBS_RETRIED_KEY, 1);
 
@@ -195,6 +196,7 @@ impl RedisJob {
             .hset(&self.key, job::Field::EndedAt, DateTime::now())
             .lrem(keys::RUNNING_KEY, 1, self.id) // remove from running queue if present
             .lrem(keys::FAILED_KEY, 1, self.id) // remove from failed queue if present
+            .lrem(keys::TIMEDOUT_KEY, 1, self.id) // remove from timedout queue if present
             .lrem(&queue.jobs_key, 1, self.id) // remove from original queue if present
             .rpush(keys::ENDED_KEY, self.id) // add to ended queue
             .incr(keys::STAT_JOBS_CANCELLED_KEY, 1))
@@ -550,7 +552,10 @@ impl RedisJob {
             .lrem(keys::RUNNING_KEY, 1, self.id)
             .ignore()
             .lrem(keys::ENDED_KEY, 1, self.id)
+            .ignore()
+            .lrem(keys::TIMEDOUT_KEY, 1, self.id)
             .ignore();
+
 
         if let Some(tags) = tags {
             for tag in serde_json::from_str::<Vec<&str>>(&tags).unwrap() {

@@ -189,6 +189,7 @@ impl RedisQueue {
             keys::FAILED_KEY,
             keys::ENDED_KEY,
             keys::RUNNING_KEY,
+            keys::TIMEDOUT_KEY,
         ] {
             for job_id in conn.lrange::<_, Vec<u64>>(*queue_key, 0, -1).await? {
                 pipe.hget(
