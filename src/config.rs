@@ -193,7 +193,8 @@ fn deserialize_expiry_check_statuses<'de, D: Deserializer<'de>>(
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
             where E: de::Error
         {
-            Ok(vec![job::Status::from_str(value.to_owned().as_str()).unwrap()])
+            let status = job::Status::from_str(value.to_owned().as_str()).expect("not a valid expiry_check_status");
+            Ok(vec![status])
         }
 
         fn visit_seq<S>(self, visitor: S) -> Result<Self::Value, S::Error>
