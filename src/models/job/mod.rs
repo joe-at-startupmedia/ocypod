@@ -320,13 +320,20 @@ impl ExpiryMeta {
     }
 
     pub fn fields() -> &'static [Field] {
-        static FIELDS: [Field; 3] = [Field::Id, Field::EndedAt, Field::ExpiresAfter];
+        static FIELDS: [Field; 4] = [Field::Id, Field::EndedAt, Field::ExpiresAfter, Field::Status];
         &FIELDS
     }
 
     pub fn should_expire(&self) -> bool {
         // no retry metadata means that job has been deleted
         if !self.0.exists() {
+            return false;
+        }
+
+        let config = crate::config::parse_config_from_cli_args();
+
+        let job_status = self.0.status();
+        if !config.server.expiry_check_statuses.contains(&job_status) {
             return false;
         }
 
