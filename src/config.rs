@@ -8,11 +8,13 @@ use std::str::FromStr;
 use std::collections::HashMap;
 
 use log::{debug, warn};
-use serde::de::Deserializer;
 use serde::Deserialize;
+use serde::de::{self, Deserializer};
+use std::fmt;
+use std::marker::PhantomData;
 use structopt::StructOpt;
 
-use crate::models::Duration;
+use crate::models::{Duration,job};
 
 /// Parsed command line options when the server application is started.
 #[derive(Debug, StructOpt)]
@@ -126,6 +128,10 @@ pub struct ServerConfig {
     /// Determines how often ended tasks are checked for expiry. Defaults to "5m" if not specified.
     pub expiry_check_interval: Duration,
 
+    /// Determines jobs to be expired based on status
+    #[serde(deserialize_with = "deserialize_expiry_check_statuses")]
+    pub expiry_check_statuses: Vec<job::Status>,
+
     /// Amount of time workers have to finish requests after server receives SIGTERM.
     pub shutdown_timeout: Option<Duration>,
 
@@ -172,6 +178,34 @@ fn deserialize_log_level<'de, D: Deserializer<'de>>(
     }
 }
 
+fn deserialize_expiry_check_statuses<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<job::Status>, D::Error> {
+    struct StringOrVec(PhantomData<Vec<job::Status>>);
+
+    impl<'de> de::Visitor<'de> for StringOrVec {
+        type Value = Vec<job::Status>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("string or list of strings")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where E: de::Error
+        {
+            Ok(vec![job::Status::from_str(value.to_owned().as_str()).unwrap()])
+        }
+
+        fn visit_seq<S>(self, visitor: S) -> Result<Self::Value, S::Error>
+            where S: de::SeqAccess<'de>
+        {
+            Deserialize::deserialize(de::value::SeqAccessDeserializer::new(visitor))
+        }
+    }
+
+    deserializer.deserialize_any(StringOrVec(PhantomData))
+}
+
 impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
@@ -182,6 +216,12 @@ impl Default for ServerConfig {
             timeout_check_interval: Duration::from_secs(30),
             retry_check_interval: Duration::from_secs(60),
             expiry_check_interval: Duration::from_secs(300),
+            expiry_check_statuses: vec![
+                job::Status::Failed,
+                job::Status::Completed,
+                job::Status::Cancelled,
+                job::Status::TimedOut
+            ],
             shutdown_timeout: None,
             next_job_delay: None,
             log_level: log::Level::Info,
