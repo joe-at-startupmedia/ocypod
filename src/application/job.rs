@@ -224,9 +224,18 @@ impl RedisJob {
             let mut pipe = redis::pipe();
             let pipe_ref = pipe.atomic();
             match self.status(conn).await {
-                Ok(job::Status::Failed) | Ok(job::Status::TimedOut) => {
+                Ok(job::Status::Failed) => {
                     let result: Option<()> = pipe_ref
                         .lrem(keys::FAILED_KEY, 1, self.id)
+                        .rpush(keys::ENDED_KEY, self.id)
+                        .query_async(conn)
+                        .await?;
+                    result.map(|_| true)
+                }
+                Ok(job::Status::TimedOut) => {
+                    let result: Option<()> = pipe_ref
+                        .lrem(keys::FAILED_KEY, 1, self.id)
+                        .rpush(keys::TIMEDOUT_KEY, self.id)
                         .rpush(keys::ENDED_KEY, self.id)
                         .query_async(conn)
                         .await?;
