@@ -146,6 +146,14 @@ impl RedisManager {
         RedisJob::new(job_id).update_heartbeat(conn).await
     }
 
+    /// Retry the job
+    pub async fn retry_job<C: ConnectionLike + Send>(
+        conn: &mut C,
+        job_id: u64,
+    ) -> OcyResult<job::Payload> {
+        RedisJob::new(job_id).retry(conn).await
+    }
+
     /// Get the `status` field of given job.
     pub async fn job_status<C: ConnectionLike + Send>(
         conn: &mut C,

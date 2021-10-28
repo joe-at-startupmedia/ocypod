@@ -416,6 +416,42 @@ impl RedisJob {
         Ok(())
     }
 
+    ///retries a job by requeueing it
+    pub async fn retry<C: ConnectionLike + Send>(&self, conn: &mut C) -> OcyResult<job::Payload> {
+        let job_payload: job::Payload = transaction_async!(conn, &[&self.key], {
+            // only existing/running jobs can have heartbeat updated
+            let job_status = self.status(conn).await?;
+
+            if !vec![job::Status::TimedOut, job::Status::Failed].contains(&job_status) {
+                return Err(OcyError::conflict(format!("Cannot retry job {}, job is not failed or timed_out", self.id)));
+            }
+            
+            self.requeue(conn, redis::pipe().atomic(), true)
+                .await?
+                .query_async(conn)
+                .await?;
+            
+            let input: Option<String> = conn.hget(&self.key, job::Field::Input).await?;
+            
+            let payload =
+                job::Payload::new(self.id(), input.map(|s| serde_json::from_str(&s).unwrap()));
+
+            let result: Option<()> = redis::pipe()
+                .atomic()
+                .hset(&self.key, job::Field::Status, job::Status::Running)
+                .hset(&self.key, job::Field::StartedAt, DateTime::now())
+                .rpush(keys::RUNNING_KEY, self.id())
+                .query_async(conn)
+                .await?;
+
+            info!("retrying [{}{}]", keys::JOB_PREFIX, self.id());
+
+            result.map(|_| payload)
+        });
+        Ok(job_payload)
+    }
+
+
     /// Expires a job in a transaction.
     ///
     /// Callers should typically check for job expiry outside of a transaction (and probably in a pipeline),

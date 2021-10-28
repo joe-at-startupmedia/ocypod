@@ -101,6 +101,10 @@ async fn main() -> std::io::Result<()> {
                             .route(web::put().to(handlers::job::heartbeat)),
                     )
                     .service(
+                        web::resource("/{id}/retry")
+                            .route(web::put().to(handlers::job::retry)),
+                    )
+                    .service(
                         web::resource("/{id}")
                             // Get all metadata about a job with given ID.
                             .route(web::get().to(handlers::job::index))
