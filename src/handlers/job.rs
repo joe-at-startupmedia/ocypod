@@ -246,3 +246,31 @@ pub async fn set_output(
         }
     }
 }
+
+/// Handles `PUT /job/{job_id}/retry` requests. This endpoint retries a job
+///
+/// # Returns
+///
+/// * 204 - update successfully performed
+/// * 404 - not found error if no job with given `job_id` is found
+/// * 409 - unable to retry job not in `failed|timed_out` state
+/// * 500 - unexpected internal error
+/// * 503 - Redis connection unavailable
+pub async fn retry(path: web::Path<u64>, data: web::Data<ApplicationState>) -> impl Responder {
+    let job_id = path.into_inner();
+    let mut conn = data.redis_conn_manager.clone();
+
+    match RedisManager::retry_job(&mut conn, job_id).await {
+        Ok(job) => HttpResponse::Ok().json(job),
+        Err(OcyError::NoSuchJob(_)) => HttpResponse::NotFound().into(),
+        Err(OcyError::Conflict(msg)) => HttpResponse::Conflict().body(msg),
+        Err(OcyError::RedisConnection(err)) => {
+            error!("[job:{}] failed to retry: {}", job_id, err);
+            HttpResponse::ServiceUnavailable().body(err)
+        }
+        Err(err) => {
+            error!("[job:{}] failed to retry: {}", job_id, err);
+            HttpResponse::InternalServerError().body(err)
+        }
+    }
+}
