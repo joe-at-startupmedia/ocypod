@@ -1,7 +1,7 @@
 //! HTTP handlers for the `/queue` endpoints.
 
 use actix_web::{web, HttpResponse, Responder};
-use log::error;
+use log::{debug, error};
 
 use crate::application::{RedisManager, file};
 use crate::models::{job, queue, ApplicationState, OcyError};
@@ -170,7 +170,9 @@ pub async fn create_job(
 
     match RedisManager::create_job(&mut conn, &queue_name, &job_req).await {
         Ok(job_id) => {
-            let _del = file::delete_job(&job_write_res);
+            let job_attempt = file::get_job(&queue_name, job_write_res.1);
+            debug!("deleting job attempt {:?}", job_attempt);
+            let _del = file::delete_job(&job_write_res.0);
             HttpResponse::Created()
                 .header("Location", format!("/job/{}", job_id))
                 .json(job_id)

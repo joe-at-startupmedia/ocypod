@@ -28,8 +28,18 @@ pub fn get_paths() -> Result<SysPaths, Box<dyn std::error::Error>> {
     Ok(SysPaths { dir, exe })
 }
 
+/// gets file contents
+pub fn get_file_contents(filename: &str) -> String {
+    let contents = fs::read_to_string(filename).expect(&format!(
+        "Something went wrong reading the file: {}",
+        &filename
+    ));
+
+    contents
+}
+
 /// writes job json to a file
-pub fn write_job(queue_name: &str, json: &job::CreateRequest) -> Result<String, Box<dyn std::error::Error>>  {
+pub fn write_job(queue_name: &str, json: &job::CreateRequest) -> Result<(String, i64), Box<dyn std::error::Error>>  {
     
     let paths = get_paths()?;
     
@@ -47,7 +57,23 @@ pub fn write_job(queue_name: &str, json: &job::CreateRequest) -> Result<String, 
 
     let _res = fs::write(&destination, file_contents);
 
-    Ok(destination)
+    Ok((destination, timestamp))
+}
+
+/// get a job creation attempt by the queue_name and timestamp
+pub fn get_job(queue_name: &str, timestamp: i64) -> Result<job::CreateRequest, Box<dyn std::error::Error>>  {
+
+    let paths = get_paths()?;
+    
+    let output_dir = format!("{}/queues/{}", paths.exe, queue_name);
+
+    let src = format!("{}/{}.json", output_dir, timestamp);
+
+    let contents = get_file_contents(&src);
+
+    let create_request = serde_json::from_str(&contents)?;
+  
+    Ok(create_request)
 }
 
 ///delete file specified by the path name
