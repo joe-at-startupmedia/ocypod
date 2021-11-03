@@ -3,7 +3,7 @@
 use actix_web::{web, HttpResponse, Responder};
 use log::error;
 
-use crate::application::RedisManager;
+use crate::application::{RedisManager, file};
 use crate::models::{job, queue, ApplicationState, OcyError};
 
 /// Handle `GET /queue` requests to get a JSON list of all existing queues.
@@ -166,10 +166,15 @@ pub async fn create_job(
     let job_req = json.into_inner();
     let mut conn = data.redis_conn_manager.clone();
 
+    let job_write_res = file::write_job(&queue_name, &job_req).unwrap();
+
     match RedisManager::create_job(&mut conn, &queue_name, &job_req).await {
-        Ok(job_id) => HttpResponse::Created()
-            .header("Location", format!("/job/{}", job_id))
-            .json(job_id),
+        Ok(job_id) => {
+            let _del = file::delete_job(&job_write_res);
+            HttpResponse::Created()
+                .header("Location", format!("/job/{}", job_id))
+                .json(job_id)
+        },
         Err(OcyError::NoSuchQueue(_)) => {
             HttpResponse::NotFound().reason("Queue Not Found").finish()
         }

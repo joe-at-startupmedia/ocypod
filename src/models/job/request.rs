@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 use crate::models::{job::Status, Duration};
 
 /// Request to create a new job.
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CreateRequest {
     /// Contains the job payload itself, clients will generally parse this to determine what work to do.
     pub input: Option<serde_json::Value>,

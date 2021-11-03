@@ -6,6 +6,7 @@ mod manager;
 pub mod monitor;
 mod queue;
 mod tag;
+pub mod file;
 
 pub use job::RedisJob;
 pub use manager::RedisManager;
