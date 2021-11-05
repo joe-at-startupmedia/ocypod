@@ -172,7 +172,7 @@ pub async fn create_job(
         Ok(job_id) => {
             let job_attempt = file::get_job(&queue_name, job_write_res.1);
             debug!("deleting job attempt {:?}", job_attempt);
-            let _del = file::delete_job(&job_write_res.0);
+            let _del = file::delete_job(&queue_name, job_write_res.1);
             HttpResponse::Created()
                 .header("Location", format!("/job/{}", job_id))
                 .json(job_id)
@@ -219,3 +219,51 @@ pub async fn next_job(
         }
     }
 }
+
+pub async fn reattempt_job(
+    web::Path((queue_name, timestamp)): web::Path<(String, i64)>,
+    data: web::Data<ApplicationState>,
+) -> impl Responder {
+
+    let mut conn = data.redis_conn_manager.clone();
+
+    debug!("attempting to reattempt {:?} on {}", timestamp, &queue_name);
+
+    match file::get_job(&queue_name, timestamp) {
+        Ok(mut job_req) => {
+            debug!("attempting to reattempt {:?} on {}", job_req, timestamp);
+            //this will not work in the input value is not an object
+            if let Some(serde_json::Value::Object(input)) = &mut job_req.input {
+                input.extend([ // note: requires fairly recent (stable) Rust, otherwise arrays are not `IntoIterator`
+                    ("attempted_on".to_owned(), timestamp.into()),
+                ]);
+            }
+            match RedisManager::create_job(&mut conn, &queue_name, &job_req).await {
+                Ok(job_id) => {
+                    debug!("deleting job attempt {:?} on {}", job_req, timestamp);
+                    let _del = file::delete_job(&queue_name, timestamp);
+                    HttpResponse::Created()
+                        .header("Location", format!("/job/{}", job_id))
+                        .json(job_id)
+                },
+                Err(OcyError::NoSuchQueue(_)) => {
+                    HttpResponse::NotFound().reason("Queue Not Found").finish()
+                }
+                Err(OcyError::BadRequest(msg)) => HttpResponse::BadRequest().body(msg),
+                Err(OcyError::RedisConnection(err)) => {
+                    error!("[queue:{}] failed to reattempt creating new job: {}", &queue_name, err);
+                    HttpResponse::ServiceUnavailable().body(err)
+                }
+                Err(err) => {
+                    error!("[queue:{}] failed to reattempt creating new job: {}", &queue_name, err);
+                    HttpResponse::InternalServerError().body(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("[queue:{}] failed to reattempt failed job creation: {}", &queue_name, err);
+            HttpResponse::InternalServerError().body(format!("[queue:{}] failed to reattempt failed job creation: {}", &queue_name, err))
+        }
+    }
+}
+
