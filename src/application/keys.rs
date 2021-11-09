@@ -23,6 +23,10 @@ pub const TIMEDOUT_KEY: &str = "ocypod:timedout";
 /// or failed/timed out with no remaining retries to attempted. Jobs in this queue are monitored for expiry.
 pub const ENDED_KEY: &str = "ocypod:ended";
 
+/// Redis key for the completed job list. Jobs are moved here then they have either successfully completed.
+/// Jobs in this queue are monitored for expiry.
+pub const COMPLETED_KEY: &str = "ocypod:completed";
+
 /// Redis key for the job ID counter. This is used as a counter to generate unique IDs for each job.
 pub const JOB_ID_KEY: &str = "ocypod:job_id";
 

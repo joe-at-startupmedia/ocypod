@@ -143,6 +143,7 @@ impl RedisJob {
             .hset(&self.key, job::Field::EndedAt, DateTime::now())
             .lrem(keys::RUNNING_KEY, 1, self.id)
             .lpush(keys::ENDED_KEY, self.id)
+            .lpush(keys::COMPLETED_KEY, self.id)
             .incr(keys::STAT_JOBS_COMPLETED_KEY, 1)
     }
 
@@ -588,6 +589,8 @@ impl RedisJob {
             .lrem(keys::RUNNING_KEY, 1, self.id)
             .ignore()
             .lrem(keys::ENDED_KEY, 1, self.id)
+            .ignore()
+            .lrem(keys::COMPLETED_KEY, 1, self.id)
             .ignore()
             .lrem(keys::TIMEDOUT_KEY, 1, self.id)
             .ignore();
